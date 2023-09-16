@@ -3,9 +3,8 @@ from abc import abstractmethod
 from qwrapper.circuit import QWrapper
 from qwrapper.util import QUtil
 from qulacs import QuantumState, Observable
-from qwrapper.circuit import QulacsCircuit
+from qwrapper.circuit import QulacsCircuit, CUDAQuantumCircuit
 import numpy as np
-from qwrapper.cudaq import CUDAQuantumCircuit
 import cudaq 
 
 def build_operator_str(p_string):
@@ -168,8 +167,8 @@ class Hamiltonian(Obs):
                 q = cudaq.qvector(qc.numQubits)
                 [op(q) for op in qc.gatesToApply]
             
-            print("\tCompute <H> cudaq, qpu_id = {}".format(kwargs['qpu_id'] if 'qpu_id' in kwargs else 0))
             if 'parallelObserve' in kwargs and kwargs['parallelObserve']:
+                print("Async exec on qpu {}".format(kwargs['qpu_id']))
                 return cudaq.observe_async(eval, self._cudaq_obs, qpu_id=kwargs['qpu_id'])
             
             return cudaq.observe(eval, self._cudaq_obs).expectation_z()
@@ -177,7 +176,6 @@ class Hamiltonian(Obs):
         if isinstance(qc, QulacsCircuit):
             if self._qulacs_obs is None:
                 self._qulacs_obs = self._build_qulacs_obs()
-            # print("Compute <H> qulacs")
             return self._qulacs_obs.get_expectation_value(qc.get_state())
         if self._matrix is None:
             matrix = np.diag(np.zeros(pow(2, self.nqubit), dtype=np.complex128))
@@ -234,9 +232,9 @@ class Hamiltonian(Obs):
     def _build_cudaq_obs(self):
         observable = cudaq.SpinOperator()
         for h, p in zip(self._hs, self._paulis):
-            print(h, p)
             observable += h * p.sign * cudaq.SpinOperator.from_word(p.p_string)
         return observable - cudaq.SpinOperator()
+
     
     def __repr__(self) -> str:
         result = ""
